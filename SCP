@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMA | Cazador de la Siguiente Mejor Actividad</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #0b1220; /* dark */
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      touch-action: none;
+    }
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      box-shadow: 0 0 22px rgba(0,0,0,0.55);
+      background: radial-gradient(1200px 800px at 50% 0%, #19233a 0%, #0b1220 60%, #070b13 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0,0,0,0.86);
+      color: white;
+      z-index: 10;
+      transition: opacity 0.25s;
+    }
+    .hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .btn {
+      background: linear-gradient(135deg, #22c55e 0%, #3b82f6 60%, #a855f7 100%);
+      border: none;
+      padding: 14px 38px;
+      color: white;
+      font-size: 1.2rem;
+      font-weight: 800;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.18s, box-shadow 0.18s;
+      box-shadow: 0 10px 28px rgba(59, 130, 246, 0.25);
+      margin-top: 18px;
+      letter-spacing: .2px;
+    }
+    .btn:hover { transform: scale(1.04); }
+    .btn:active { transform: scale(0.97); }
+
+    #hud {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      color: white;
+      font-size: 1rem;
+      pointer-events: none;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.45);
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .hud-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.07);
+      backdrop-filter: blur(8px);
+      width: fit-content;
+    }
+    .badge {
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-weight: 800;
+      letter-spacing: .2px;
+    }
+    .shake { animation: shake 90ms linear 1; }
+    @keyframes shake {
+      0% { transform: translate(0px, 0px); }
+      30% { transform: translate(6px, 2px); }
+      60% { transform: translate(-5px, -2px); }
+      100% { transform: translate(0px, 0px); }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="game-container">
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-row">
+        <span>📈</span>
+        <span class="opacity-80">Impacto SMA:</span>
+        <span id="scoreVal" class="badge bg-yellow-400/20 text-yellow-300">0</span>
+      </div>
+      <div class="hud-row">
+        <span>🛡️</span>
+        <span class="opacity-80">Vidas (calidad):</span>
+        <span id="livesVal" class="badge bg-red-400/20 text-red-300">3</span>
+      </div>
+      <div class="hud-row">
+        <span>🧭</span>
+        <span class="opacity-80">Etapa:</span>
+        <span id="levelVal" class="badge bg-sky-400/20 text-sky-300">1</span>
+        <span id="stageVal" class="opacity-85 text-sm ml-1">SMA</span>
+      </div>
+    </div>
+
+    <!-- START -->
+    <div id="start-screen" class="overlay">
+      <h1 class="text-5xl font-black mb-3 text-center text-transparent bg-clip-text bg-gradient-to-r from-green-300 via-sky-300 to-purple-400 px-4">
+        SMA • Siguiente Mejor Actividad
+      </h1>
+      <p class="text-lg mb-6 text-gray-300 text-center max-w-xl px-6">
+        Atrapa las actividades que <span class="font-bold text-white">mueven la aguja</span> del prospecto hacia el cierre.
+        Evita los “anti-SMA” que diluyen control, contacto o feedback.
+      </p>
+
+      <div class="bg-white/5 p-6 rounded-2xl mb-6 border border-white/10 max-w-md mx-4">
+        <h3 class="text-base font-bold mb-4 text-center">Reglas rápidas</h3>
+
+        <div class="flex items-start gap-3 mb-3">
+          <span class="text-2xl">📞</span>
+          <div class="text-gray-300 text-sm">
+            <div class="font-semibold text-white">SMA de contacto</div>
+            Llamada crítica, confirmación, seguimiento 24h (+10 a +20)
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 mb-3">
+          <span class="text-2xl">📄</span>
+          <div class="text-gray-300 text-sm">
+            <div class="font-semibold text-white">SMA de avance</div>
+            Propuesta, avalúo/oferta, agendar prueba de manejo (+20 a +30)
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">🚫</span>
+          <div class="text-gray-300 text-sm">
+            <div class="font-semibold text-white">Anti-SMA</div>
+            “Luego te marco”, spam, no confirmar, sin siguiente paso (-1 vida)
+          </div>
+        </div>
+      </div>
+
+      <p class="text-sm text-gray-400 mb-3">Usa flechas ◀▶ o arrastra con el dedo / mouse</p>
+      <button id="start-btn" class="btn">¡Cazar SMA!</button>
+
+      <p class="text-xs text-gray-500 mt-4 px-6 text-center">
+        Tip: Prioriza SMA con más <span class="text-white font-semibold">control + contacto + feedback</span>.
+      </p>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameover-screen" class="overlay hidden">
+      <h2 class="text-6xl mb-2">⛔</h2>
+      <h2 class="text-4xl font-black mb-2 text-white">Se rompió la calidad</h2>
+      <p class="text-base text-gray-300 mb-6 px-6 text-center max-w-lg">
+        Demasiados anti-SMA. Recalibra: “¿Qué acción hoy acerca más al cierre?”
+      </p>
+      <p class="text-xl mb-6">
+        Impacto Final: <span id="final-score" class="text-yellow-300 font-black">0</span>
+      </p>
+      <button id="restart-btn" class="btn">Reintentar</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <script>
+    // --- Setup ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('gameover-screen');
+    const hud = document.getElementById('hud');
+
+    const scoreEl = document.getElementById('scoreVal');
+    const livesEl = document.getElementById('livesVal');
+    const levelEl = document.getElementById('levelVal');
+    const stageEl = document.getElementById('stageVal');
+    const finalScoreEl = document.getElementById('final-score');
+
+    let animationId;
+    let lastTime = 0;
+
+    let score = 0;
+    let lives = 3;
+
+    // Niveles = etapas del journey (simple, narrativo)
+    const STAGES = [
+      { name: 'SMA',            baseSpeed: 1.0 },
+      { name: 'ABC',            baseSpeed: 1.15 },  // (Atraer / Brief / Calificar) - ajustable a tu lenguaje
+      { name: 'Intervención',   baseSpeed: 1.30 },
+      { name: 'Cierre',         baseSpeed: 1.50 },
+    ];
+
+    let level = 1;        // 1..n
+    let gameSpeed = 1;
+    let isPlaying = false;
+    let spawnTimer = 0;
+    let spawnInterval = 950; // ms
+
+    // Player (asesor)
+    const player = {
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 80,
+      speed: 8,
+      emoji: '🧑‍💼',
+      targetX: 0
+    };
+
+    let items = [];
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      player.y = canvas.height - 110;
+      player.x = canvas.width / 2 - player.width / 2;
+      player.targetX = player.x;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // --- SMA Items (tropicalizados) ---
+    // Cada item tiene: emoji, label (opcional), points, isBad
+    const GOOD_ACTIONS = [
+      { emoji: '📞', label: 'Llamada crítica', points: 20 },
+      { emoji: '📅', label: 'Confirmar cita', points: 20 },
+      { emoji: '🚗', label: 'Agendar prueba', points: 30 },
+      { emoji: '📄', label: 'Enviar propuesta', points: 30 },
+      { emoji: '💰', label: 'Avalúo + oferta', points: 30 },
+      { emoji: '✅', label: 'Cerrar compromiso', points: 40 },
+      { emoji: '🎥', label: 'Video personalizado', points: 20 },
+      { emoji: '⏱️', label: 'Seguimiento 24h', points: 20 },
+      { emoji: '🧠', label: 'Vencer objeción', points: 30 },
+    ];
+
+    const BAD_ACTIONS = [
+      { emoji: '💤', label: 'Dejarlo en visto', penalty: 1 },
+      { emoji: '❌', label: 'Sin siguiente paso', penalty: 1 },
+      { emoji: '📵', label: 'No contestar / no insistir', penalty: 1 },
+      { emoji: '🌀', label: 'Dar vueltas', penalty: 1 },
+      { emoji: '📣', label: 'Spam sin valor', penalty: 1 },
+      { emoji: '🧾', label: 'Cotizar sin contexto', penalty: 1 },
+      { emoji: '🤝', label: 'Promesa sin fecha', penalty: 1 },
+    ];
+
+    // --- Classes ---
+    class Item {
+      constructor() {
+        this.size = 54;
+        this.x = Math.random() * (canvas.width - this.size);
+        this.y = -this.size;
+
+        // 27% probabilidad de anti-SMA
+        this.isBad = Math.random() < 0.27;
+
+        if (this.isBad) {
+          const pick = BAD_ACTIONS[Math.floor(Math.random() * BAD_ACTIONS.length)];
+          this.emoji = pick.emoji;
+          this.label = pick.label;
+          this.points = 0;
+          this.penalty = pick.penalty;
+          this.speed = (Math.random() * 2 + 3.1) * gameSpeed;
+        } else {
+          const pick = GOOD_ACTIONS[Math.floor(Math.random() * GOOD_ACTIONS.length)];
+          this.emoji = pick.emoji;
+          this.label = pick.label;
+          this.points = pick.points;
+          this.penalty = 0;
+          this.speed = (Math.random() * 2 + 2.3) * gameSpeed;
+        }
+
+        this.rotation = (Math.random() - 0.5) * 0.18;
+        this.angle = 0;
+      }
+
+      update() {
+        this.y += this.speed;
+        this.angle += this.rotation;
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x + this.size / 2, this.y + this.size / 2);
+        ctx.rotate(this.angle);
+
+        ctx.font = `${this.size}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.emoji, 0, 0);
+
+        ctx.restore();
+      }
+    }
+
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 5 + 2;
+        this.speedX = Math.random() * 6 - 3;
+        this.speedY = Math.random() * 6 - 3;
+        this.color = color;
+        this.life = 1;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.life -= 0.02;
+      }
+      draw() {
+        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // --- Input ---
+    const keys = { left: false, right: false };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = true;
+      if (e.key === 'ArrowRight') keys.right = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = false;
+      if (e.key === 'ArrowRight') keys.right = false;
+    });
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function handleInput(clientX) {
+      if (!isPlaying) return;
+      let target = clientX - player.width / 2;
+      target = clamp(target, 0, canvas.width - player.width);
+      player.targetX = target;
+      // Respuesta rápida:
+      player.x = target;
+    }
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      handleInput(e.touches[0].clientX);
+    }, { passive: false });
+
+    canvas.addEventListener('mousemove', (e) => handleInput(e.clientX));
+
+    // --- Game logic ---
+    function createExplosion(x, y, color) {
+      for (let i = 0; i < 12; i++) particles.push(new Particle(x, y, color));
+    }
+
+    function updateHUD() {
+      scoreEl.innerText = score;
+      livesEl.innerText = lives;
+      levelEl.innerText = level;
+
+      const stageIdx = clamp(level - 1, 0, STAGES.length - 1);
+      stageEl.innerText = STAGES[stageIdx].name;
+    }
+
+    function increaseDifficulty() {
+      // Cada 120 puntos sube el “nivel” (y cambia etapa narrativamente)
+      const newLevel = Math.floor(score / 120) + 1;
+
+      if (newLevel > level) {
+        level = newLevel;
+
+        const stageIdx = clamp(level - 1, 0, STAGES.length - 1);
+        gameSpeed = STAGES[stageIdx].baseSpeed + (level * 0.03);
+
+        // Más rápido el spawn, con límite
+        spawnInterval = Math.max(220, 950 - (level * 70));
+      }
+    }
+
+    function checkCollisions() {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+
+        if (
+          item.x < player.x + player.width &&
+          item.x + item.size > player.x &&
+          item.y < player.y + player.height &&
+          item.y + item.size > player.y
+        ) {
+          // Hit
+          if (item.isBad) {
+            lives -= item.penalty;
+
+            createExplosion(item.x, item.y, '#ef4444'); // rojo
+            canvas.classList.add('shake');
+            setTimeout(() => canvas.classList.remove('shake'), 100);
+          } else {
+            score += item.points;
+            createExplosion(item.x, item.y, '#facc15'); // amarillo
+          }
+
+          items.splice(i, 1);
+          updateHUD();
+
+          if (lives <= 0) endGame();
+          continue;
+        }
+
+        // Out
+        if (item.y > canvas.height) items.splice(i, 1);
+      }
+    }
+
+    function update(timestamp) {
+      if (!isPlaying) return;
+
+      const deltaTime = timestamp - lastTime;
+      lastTime = timestamp;
+
+      // Teclado
+      if (keys.left)  player.x -= player.speed;
+      if (keys.right) player.x += player.speed;
+      player.x = clamp(player.x, 0, canvas.width - player.width);
+
+      // Spawn
+      if (timestamp - spawnTimer > spawnInterval) {
+        items.push(new Item());
+        spawnTimer = timestamp;
+      }
+
+      // Update
+      items.forEach(it => it.update());
+
+      particles.forEach((p, idx) => {
+        p.update();
+        if (p.life <= 0) particles.splice(idx, 1);
+      });
+
+      checkCollisions();
+      increaseDifficulty();
+      draw();
+
+      animationId = requestAnimationFrame(update);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // “Carril” sutil (opcional)
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, player.y + 68, canvas.width, 2);
+      ctx.globalAlpha = 1;
+
+      // Player (asesor)
+      ctx.font = `${player.height}px Arial`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(player.emoji, player.x, player.y);
+
+      // Items
+      items.forEach(it => it.draw());
+
+      // Partículas
+      particles.forEach(p => p.draw());
+    }
+
+    function startGame() {
+      score = 0;
+      lives = 3;
+      level = 1;
+      gameSpeed = STAGES[0].baseSpeed;
+
+      items = [];
+      particles = [];
+      isPlaying = true;
+
+      startScreen.classList.add('hidden');
+      gameOverScreen.classList.add('hidden');
+      hud.classList.remove('hidden');
+
+      updateHUD();
+      lastTime = performance.now();
+      resizeCanvas();
+      animationId = requestAnimationFrame(update);
+    }
+
+    function endGame() {
+      isPlaying = false;
+      cancelAnimationFrame(animationId);
+      hud.classList.add('hidden');
+      gameOverScreen.classList.remove('hidden');
+      finalScoreEl.innerText = score;
+    }
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('restart-btn').addEventListener('click', startGame);
+  </script>
+</body>
+</html>
