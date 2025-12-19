@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AUTOCOM | SMA - Siguiente Mejor Actividad</title>
+
+  <!-- Tailwind (para layout rápido) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Montserrat -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      /* Branding AUTOCOM (ajustable) */
+      --autocom-red:#c40030;
+      --autocom-dark:#0b0f1a;
+      --autocom-ink:#101828;
+      --autocom-gray:#ebebeb;
+      --autocom-white:#ffffff;
+      --glass: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.10);
+      --shadow: rgba(0,0,0,0.50);
+    }
+
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      overflow:hidden;
+      background: radial-gradient(1200px 700px at 50% 0%, #1b1f2c 0%, var(--autocom-dark) 55%, #070910 100%);
+      font-family: "Montserrat", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      touch-action:none;
+    }
+
+    #game-container{
+      position:relative;
+      width:100vw;
+      height:100vh;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding: 20px;
+    }
+
+    canvas{
+      width: min(1200px, 100%);
+      height: min(720px, 100%);
+      box-shadow: 0 18px 50px var(--shadow);
+      background: radial-gradient(900px 520px at 50% 0%, rgba(196,0,48,0.18) 0%, rgba(255,255,255,0.05) 22%, rgba(0,0,0,0) 55%),
+                  linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 60%, rgba(0,0,0,0.35) 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.09);
+      display:block;
+    }
+
+    .overlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+      background: rgba(0,0,0,0.84);
+      color: var(--autocom-white);
+      z-index:10;
+      transition: opacity .25s;
+      padding: 24px;
+    }
+    .hidden{ opacity:0; pointer-events:none; }
+
+    .btn{
+      background: linear-gradient(135deg, var(--autocom-red) 0%, #ff3b6a 55%, #7c3aed 100%);
+      border:none;
+      padding: 14px 38px;
+      color:white;
+      font-size: 1.05rem;
+      font-weight: 900;
+      border-radius: 999px;
+      cursor:pointer;
+      transition: transform .18s, box-shadow .18s, filter .18s;
+      box-shadow: 0 14px 32px rgba(196,0,48,0.22);
+      letter-spacing: .4px;
+      text-transform: uppercase;
+    }
+    .btn:hover{ transform: scale(1.03); filter: brightness(1.03); }
+    .btn:active{ transform: scale(0.98); }
+
+    #hud{
+      position:absolute;
+      top: 18px;
+      left: 18px;
+      z-index:5;
+      pointer-events:none;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      color:white;
+      text-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    }
+
+    .hud-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: var(--glass);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      width: fit-content;
+    }
+    .badge{
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 900;
+      letter-spacing: .3px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.06);
+    }
+    .badge-red{ background: rgba(196,0,48,0.22); border-color: rgba(196,0,48,0.35); }
+    .badge-yellow{ background: rgba(250,204,21,0.18); border-color: rgba(250,204,21,0.28); }
+    .badge-blue{ background: rgba(56,189,248,0.16); border-color: rgba(56,189,248,0.26); }
+
+    .brand-chip{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      backdrop-filter: blur(10px);
+    }
+    .brand-dot{
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--autocom-red);
+      box-shadow: 0 0 18px rgba(196,0,48,0.45);
+    }
+
+    .shake{ animation: shake 90ms linear 1; }
+    @keyframes shake{
+      0%{ transform: translate(0px,0px); }
+      30%{ transform: translate(6px,2px); }
+      60%{ transform: translate(-5px,-2px); }
+      100%{ transform: translate(0px,0px); }
+    }
+
+    /* Make canvas crisp on high DPI */
+    .wrap{
+      width: 100%;
+      height: 100%;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+    }
+
+    @media (max-width: 640px){
+      #hud { top: 12px; left: 12px; }
+      .hud-row { padding: 8px 10px; border-radius: 14px; }
+      .btn { padding: 12px 28px; font-size: .95rem; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="game-container">
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="brand-chip">
+        <span class="brand-dot"></span>
+        <span class="font-extrabold tracking-wide">AUTOCOM</span>
+        <span class="opacity-70 text-xs font-semibold">SMA • Gamificación</span>
+      </div>
+
+      <div class="hud-row">
+        <span>📈</span>
+        <span class="opacity-80 font-semibold">Impacto SMA</span>
+        <span id="scoreVal" class="badge badge-yellow">0</span>
+      </div>
+      <div class="hud-row">
+        <span>🛡️</span>
+        <span class="opacity-80 font-semibold">Vidas (calidad)</span>
+        <span id="livesVal" class="badge badge-red">3</span>
+      </div>
+      <div class="hud-row">
+        <span>🧭</span>
+        <span class="opacity-80 font-semibold">Etapa</span>
+        <span id="levelVal" class="badge badge-blue">1</span>
+        <span id="stageVal" class="opacity-80 text-sm font-semibold ml-1">SMA</span>
+      </div>
+    </div>
+
+    <!-- START -->
+    <div id="start-screen" class="overlay">
+      <div class="brand-chip mb-5">
+        <span class="brand-dot"></span>
+        <span class="font-extrabold tracking-wide text-lg">AUTOCOM</span>
+        <span class="opacity-70 text-xs font-semibold">Sales Journey</span>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl font-black text-center leading-tight px-4">
+        SMA • Siguiente Mejor Actividad
+      </h1>
+      <p class="mt-3 text-base sm:text-lg text-gray-300 text-center max-w-2xl px-4">
+        Caza las acciones con <span class="font-bold text-white">mayor control + contacto + feedback</span>
+        para avanzar al prospecto hacia el cierre.
+      </p>
+
+      <div class="mt-6 bg-white/5 border border-white/10 rounded-2xl p-6 max-w-lg w-full">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-extrabold tracking-wide">Reglas (SMA real)</h3>
+          <span class="text-xs font-bold px-3 py-1 rounded-full bg-white/5 border border-white/10">
+            Flechas ◀▶ o arrastra
+          </span>
+        </div>
+
+        <div class="grid gap-3">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">📞</span>
+            <div class="text-sm text-gray-300">
+              <div class="font-bold text-white">SMA de contacto</div>
+              Llamada crítica, confirmación, seguimiento 24h (+20)
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">📄</span>
+            <div class="text-sm text-gray-300">
+              <div class="font-bold text-white">SMA de avance</div>
+              Propuesta, avalúo/oferta, prueba de manejo (+30)
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">✅</span>
+            <div class="text-sm text-gray-300">
+              <div class="font-bold text-white">SMA de decisión</div>
+              Cerrar compromiso con fecha/hora (+40)
+            </div>
+          </div>
+
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">🚫</span>
+            <div class="text-sm text-gray-300">
+              <div class="font-bold text-white">Anti-SMA</div>
+              Sin siguiente paso, “luego te marco”, spam (-1 vida)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button id="start-btn" class="btn mt-7">Iniciar</button>
+
+      <p class="mt-4 text-xs text-gray-400 max-w-xl text-center px-4">
+        Objetivo: maximizar el impacto diario con la SMA correcta (lo que mueve la aguja).
+      </p>
+    </div>
+
+    <!-- GAME OVER -->
+    <div id="gameover-screen" class="overlay hidden">
+      <div class="brand-chip mb-5">
+        <span class="brand-dot"></span>
+        <span class="font-extrabold tracking-wide text-lg">AUTOCOM</span>
+        <span class="opacity-70 text-xs font-semibold">SMA • Recalibración</span>
+      </div>
+
+      <h2 class="text-5xl mb-2">⛔</h2>
+      <h2 class="text-3xl sm:text-4xl font-black mb-2 text-white">Fin del intento</h2>
+      <p class="text-sm sm:text-base text-gray-300 mb-6 text-center max-w-xl px-4">
+        Demasiados anti-SMA. Recalibra: <span class="font-bold text-white">“¿Cuál es la acción más importante hoy para acercar el cierre?”</span>
+      </p>
+
+      <p class="text-xl mb-6">
+        Impacto Final: <span id="final-score" class="font-black text-yellow-300">0</span>
+      </p>
+
+      <button id="restart-btn" class="btn">Reintentar</button>
+    </div>
+
+    <div class="wrap">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // --- Setup ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('gameover-screen');
+    const hud = document.getElementById('hud');
+
+    const scoreEl = document.getElementById('scoreVal');
+    const livesEl = document.getElementById('livesVal');
+    const levelEl = document.getElementById('levelVal');
+    const stageEl = document.getElementById('stageVal');
+    const finalScoreEl = document.getElementById('final-score');
+
+    let animationId;
+    let lastTime = 0;
+
+    let score = 0;
+    let lives = 3;
+
+    // Etapas alineadas a tu narrativa
+    const STAGES = [
+      { name: 'SMA',          baseSpeed: 1.00 },
+      { name: 'ABC',          baseSpeed: 1.15 },
+      { name: 'Intervención', baseSpeed: 1.30 },
+      { name: 'Cierre',       baseSpeed: 1.50 },
+    ];
+
+    let level = 1;
+    let gameSpeed = 1;
+    let isPlaying = false;
+    let spawnTimer = 0;
+    let spawnInterval = 920; // ms
+
+    // Player (asesor)
+    const player = {
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 80,
+      speed: 9,
+      emoji: '🧑‍💼',
+      targetX: 0
+    };
+
+    let items = [];
+    let particles = [];
+
+    function resizeCanvas() {
+      // Render nítido (DPR)
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = Math.min(1200, window.innerWidth - 40);
+      const cssH = Math.min(720, window.innerHeight - 40);
+
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // posición jugador
+      player.y = cssH - 110;
+      player.x = cssW / 2 - player.width / 2;
+      player.targetX = player.x;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const GOOD_ACTIONS = [
+      { emoji: '📞', label: 'Llamada crítica', points: 20 },
+      { emoji: '📅', label: 'Confirmar cita', points: 20 },
+      { emoji: '⏱️', label: 'Seguimiento 24h', points: 20 },
+      { emoji: '🎥', label: 'Video personalizado', points: 20 },
+      { emoji: '📄', label: 'Enviar propuesta', points: 30 },
+      { emoji: '💰', label: 'Avalúo + oferta', points: 30 },
+      { emoji: '🚗', label: 'Prueba de manejo', points: 30 },
+      { emoji: '🧠', label: 'Vencer objeción', points: 30 },
+      { emoji: '✅', label: 'Compromiso con fecha', points: 40 },
+    ];
+
+    const BAD_ACTIONS = [
+      { emoji: '💤', label: 'Dejar en visto', penalty: 1 },
+      { emoji: '❌', label: 'Sin siguiente paso', penalty: 1 },
+      { emoji: '🌀', label: 'Dar vueltas', penalty: 1 },
+      { emoji: '📣', label: 'Spam sin valor', penalty: 1 },
+      { emoji: '🤝', label: 'Promesa sin fecha', penalty: 1 },
+      { emoji: '📵', label: 'No insistir', penalty: 1 },
+    ];
+
+    class Item {
+      constructor() {
+        this.size = 54;
+        this.x = Math.random() * (canvas.style.width.replace('px','') - this.size);
+        this.y = -this.size;
+
+        this.isBad = Math.random() < 0.27;
+
+        if (this.isBad) {
+          const pick = BAD_ACTIONS[Math.floor(Math.random() * BAD_ACTIONS.length)];
+          this.emoji = pick.emoji;
+          this.label = pick.label;
+          this.points = 0;
+          this.penalty = pick.penalty;
+          this.speed = (Math.random() * 2 + 3.2) * gameSpeed;
+        } else {
+          const pick = GOOD_ACTIONS[Math.floor(Math.random() * GOOD_ACTIONS.length)];
+          this.emoji = pick.emoji;
+          this.label = pick.label;
+          this.points = pick.points;
+          this.penalty = 0;
+          this.speed = (Math.random() * 2 + 2.3) * gameSpeed;
+        }
+
+        this.rotation = (Math.random() - 0.5) * 0.18;
+        this.angle = 0;
+      }
+      update() {
+        this.y += this.speed;
+        this.angle += this.rotation;
+      }
+      draw() {
+        ctx.save();
+        ctx.translate(this.x + this.size / 2, this.y + this.size / 2);
+        ctx.rotate(this.angle);
+
+        ctx.font = `${this.size}px Montserrat, Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.emoji, 0, 0);
+
+        ctx.restore();
+      }
+    }
+
+    class Particle {
+      constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.size = Math.random() * 5 + 2;
+        this.speedX = Math.random() * 6 - 3;
+        this.speedY = Math.random() * 6 - 3;
+        this.color = color;
+        this.life = 1;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.life -= 0.02;
+      }
+      draw() {
+        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Inputs
+    const keys = { left: false, right: false };
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = true;
+      if (e.key === 'ArrowRight') keys.right = true;
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft') keys.left = false;
+      if (e.key === 'ArrowRight') keys.right = false;
+    });
+
+    function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+    function getCssW(){ return parseFloat(canvas.style.width); }
+    function getCssH(){ return parseFloat(canvas.style.height); }
+
+    function handleInput(clientX){
+      if (!isPlaying) return;
+      const cssW = getCssW();
+      let target = clientX - player.width / 2;
+      target = clamp(target, 0, cssW - player.width);
+      player.targetX = target;
+      player.x = target;
+    }
+
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      handleInput(e.touches[0].clientX);
+    }, { passive:false });
+
+    canvas.addEventListener('mousemove', (e) => handleInput(e.clientX));
+
+    function createExplosion(x, y, color){
+      for (let i = 0; i < 12; i++) particles.push(new Particle(x, y, color));
+    }
+
+    function updateHUD(){
+      scoreEl.innerText = score;
+      livesEl.innerText = lives;
+      levelEl.innerText = level;
+
+      const stageIdx = clamp(level - 1, 0, STAGES.length - 1);
+      stageEl.innerText = STAGES[stageIdx].name;
+    }
+
+    function increaseDifficulty(){
+      const newLevel = Math.floor(score / 120) + 1;
+      if (newLevel > level){
+        level = newLevel;
+        const stageIdx = clamp(level - 1, 0, STAGES.length - 1);
+        gameSpeed = STAGES[stageIdx].baseSpeed + (level * 0.03);
+        spawnInterval = Math.max(220, 920 - (level * 70));
+      }
+    }
+
+    function checkCollisions(){
+      const cssW = getCssW();
+      const cssH = getCssH();
+
+      for (let i = items.length - 1; i >= 0; i--){
+        const it = items[i];
+
+        if (
+          it.x < player.x + player.width &&
+          it.x + it.size > player.x &&
+          it.y < player.y + player.height &&
+          it.y + it.size > player.y
+        ){
+          if (it.isBad){
+            lives -= it.penalty;
+            createExplosion(it.x, it.y, '#ef4444');
+            canvas.classList.add('shake');
+            setTimeout(() => canvas.classList.remove('shake'), 100);
+          } else {
+            score += it.points;
+            // pequeño “bonus AUTOCOM” por compromiso
+            if (it.emoji === '✅') score += 10;
+            createExplosion(it.x, it.y, '#facc15');
+          }
+
+          items.splice(i, 1);
+          updateHUD();
+          if (lives <= 0) endGame();
+          continue;
+        }
+
+        if (it.y > cssH) items.splice(i, 1);
+      }
+    }
+
+    function draw(){
+      const cssW = getCssW();
+      const cssH = getCssH();
+
+      ctx.clearRect(0, 0, cssW, cssH);
+
+      // línea base suave
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, player.y + 70, cssW, 2);
+      ctx.globalAlpha = 1;
+
+      // “HUD” dentro del canvas (marca sutil)
+      ctx.globalAlpha = 0.18;
+      ctx.font = `800 14px Montserrat, Arial`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('AUTOCOM • SMA', 18, cssH - 18);
+      ctx.globalAlpha = 1;
+
+      // Player
+      ctx.font = `${player.height}px Montserrat, Arial`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(player.emoji, player.x, player.y);
+
+      // Items
+      items.forEach(it => it.draw());
+
+      // Partículas
+      particles.forEach(p => p.draw());
+    }
+
+    function update(ts){
+      if (!isPlaying) return;
+
+      lastTime = ts;
+
+      const cssW = getCssW();
+
+      if (keys.left)  player.x -= player.speed;
+      if (keys.right) player.x += player.speed;
+      player.x = clamp(player.x, 0, cssW - player.width);
+
+      if (ts - spawnTimer > spawnInterval){
+        items.push(new Item());
+        spawnTimer = ts;
+      }
+
+      items.forEach(it => it.update());
+
+      particles.forEach((p, idx) => {
+        p.update();
+        if (p.life <= 0) particles.splice(idx, 1);
+      });
+
+      checkCollisions();
+      increaseDifficulty();
+      draw();
+
+      animationId = requestAnimationFrame(update);
+    }
+
+    function startGame(){
+      score = 0;
+      lives = 3;
+      level = 1;
+      gameSpeed = STAGES[0].baseSpeed;
+      spawnInterval = 920;
+
+      items = [];
+      particles = [];
+      isPlaying = true;
+
+      startScreen.classList.add('hidden');
+      gameOverScreen.classList.add('hidden');
+      hud.classList.remove('hidden');
+
+      updateHUD();
+      resizeCanvas();
+      animationId = requestAnimationFrame(update);
+    }
+
+    function endGame(){
+      isPlaying = false;
+      cancelAnimationFrame(animationId);
+      hud.classList.add('hidden');
+      gameOverScreen.classList.remove('hidden');
+      finalScoreEl.innerText = score;
+    }
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('restart-btn').addEventListener('click', startGame);
+  </script>
+</body>
+</html>
